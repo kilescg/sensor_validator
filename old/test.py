@@ -14,7 +14,7 @@ bus = smbus2.SMBus(1)
 sensor_field_names = ['name','pm1','pm2.5','pm10', 'date_time']
 csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),'sensor_db.csv')
 
-def scan(force=False):
+def scan_all(force=False):
     devices = []
     for addr in range(0x03, 0x77 + 1):
         read = smbus2.SMBus.read_byte, (addr,), {'force':force}
