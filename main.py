@@ -1,13 +1,21 @@
 from fastapi import FastAPI
 from data_model import *
 from threading import Thread
+from database import store_data
 import time, datetime
 import i2c_manager
 
 collecting_info = {
     "is_start": False,
     "interval": None,
-    "quantity": None
+    "quantity": None,
+    "current_round": 0,
+    "addresss": []
+}
+
+model_name_to_id = {
+    'Sensirion SCD40' : 1,
+    'Panasonic SN-GCJA5' : 2
 }
 
 app = FastAPI()
@@ -18,6 +26,12 @@ def read_root():
 
 @app.get("/i2c-devices")
 async def list_i2c_devices():
+    if collecting_info["is_start"]:
+        return {
+            "status": "fail",
+            "message": "Please stop data collecting first."
+        }
+    
     data_frame = []
     i2c_addresses = i2c_manager.scan_all()
     for address in i2c_addresses:
@@ -32,11 +46,22 @@ async def list_i2c_devices():
 
 @app.get("/i2c-device/{address}")
 async def read_data_from_given_address(address: int):
+    if collecting_info["is_start"]:
+        return {
+            "status": "fail",
+            "message": "Please stop data collecting first."
+        }
+
     if i2c_manager.scan(address):
         return i2c_manager.read_sensor(address)
     return {"message" : "Can't Read Data"}
 
-@app.post("/start")
+@app.get("/auto-collecting/status")
+def collecting_status_feedback():
+    return collecting_info
+
+
+@app.post("/auto-collecting/start")
 async def start_data_collection(start_data: StartModel):
     global collecting_info
     if collecting_info["is_start"]:
@@ -52,7 +77,7 @@ async def start_data_collection(start_data: StartModel):
         "message": "Data collection has started."
     }
 
-@app.post("/stop")
+@app.post("/auto-collecting/stop")
 async def start_data_collection():
     global collecting_info
     if collecting_info["is_start"]:
@@ -71,25 +96,39 @@ async def startup_event():
     thread = Thread(target=collecting_data_loop)
     thread.start()
 
-def collecting_data_loop(quantity, interval, i2c_manager):
-    if not collecting_info["is_start"]:
-        return
-
-    addresses = i2c_manager.scan_all()
-    
-    for _ in range(quantity):
+def collecting_data_loop():
+    global collecting_info
+    while(1):
         if not collecting_info["is_start"]:
-            break
-        
-        start_time = time.time()
-        
-        # Collecting data
-        for address in addresses:
-            i2c_manager.read_sensor(address)
+            continue
+        quantity = collecting_info["quantity"]
+        interval = collecting_info["interval"]
+        addresses = i2c_manager.scan_all()
+        collecting_info["addresss"] = addresses
+        prefix = datetime.datetime.now().strftime("%m%d-%H%M-")
+
+        for cnt in range(quantity):
+            collecting_info["current_round"] = cnt
             if not collecting_info["is_start"]:
                 break
+            
+            start_time = time.time()
+            
+            # Collecting data
+            for address in addresses:
+                sensor_dict = i2c_manager.read_sensor(address)
+                data_name = f"{prefix}{address}_{model_name_to_id[sensor_dict['sensor_model']]}"
+                dt_data = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                fieldname = ['name', 'pm1', 'pm2.5', 'pm10', 'date_time']
+                data = [data_name, *sensor_dict['message'].values(), dt_data]
+                store_data(fieldname, data)
+                if not collecting_info["is_start"]:
+                    break
+            
+            # Wait for the specified interval
+            while (time.time() - start_time < interval):
+                if not collecting_info["is_start"]:
+                    break
+        collecting_info["current_round"] = 0
+        collecting_info["addresss"] = []
         
-        # Wait for the specified interval
-        while (time.time() - start_time < interval):
-            if not collecting_info["is_start"]:
-                break

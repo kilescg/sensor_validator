@@ -10,6 +10,11 @@ import os
 READ_COUNT = 60
 TIME_DELAY = 60
 
+model_name_to_id = {
+    'Sensirion SCD40' : 1,
+    'Panasonic SN-GCJA5' : 2
+}
+
 bus = smbus2.SMBus(1)
 sensor_field_names = ['name','pm1','pm2.5','pm10', 'date_time']
 csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),'sensor_db.csv')
