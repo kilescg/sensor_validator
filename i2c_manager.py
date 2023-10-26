@@ -4,6 +4,7 @@ import struct
 bus = smbus2.SMBus(1)
 
 model_id_to_name = {
+    0: 'None',
     1: 'Sensirion SCD40',
     2: 'Panasonic SN-GCJA5'
 }
@@ -11,7 +12,6 @@ model_id_to_name = {
 def scan(addr, force=False):
     read = smbus2.SMBus.read_byte, (addr,), {'force':force}
     write = smbus2.SMBus.write_byte, (addr, 0), {'force':force}
-    print(read)
     for func, args, kwargs in (read, write):
         try:
             with smbus2.SMBus(1) as bus:
@@ -29,7 +29,6 @@ def scan_all(force=False):
     for addr in range(0x03, 0x77 + 1):
         read = smbus2.SMBus.read_byte, (addr,), {'force':force}
         write = smbus2.SMBus.write_byte, (addr, 0), {'force':force}
-        print(read)
         for func, args, kwargs in (read, write):
             try:
                 with smbus2.SMBus(1) as bus:
@@ -47,19 +46,33 @@ def read_sensor(address):
     data_size = data[0]
     model_id = (data[1] << 8) + data[2]
     error_status = (data[5] << 24) + (data[6] << 16) + (data[7] << 8) + data[8]
-    pm1_data = hex((data[11] << 24) + (data[12] << 16) + (data[13] << 8) + data[14])
-    pm2_5_data = hex((data[17] << 24) + (data[18] << 16) + (data[19] << 8) + data[20])
-    pm10_data = hex((data[23] << 24) + (data[24] << 16) + (data[25] << 8) + data[26])
-    pm1_data = struct.unpack('!f', bytes(data[11:15]))[0]
-    pm2_5_data = struct.unpack('!f', bytes(data[17:21]))[0]
-    pm10_data = struct.unpack('!f', bytes(data[23:27]))[0]
-    sensor_data = {
-        'sensor_model': model_id_to_name[model_id],
-        'error_status': error_status,
-        'message' : {
-            'pm1_data': pm1_data,
-            'pm2_5_data': pm2_5_data,
-            'pm10_data': pm10_data
+    float_data_1 = struct.unpack('!f', bytes(data[11:15]))[0]
+    float_data_2 = struct.unpack('!f', bytes(data[17:21]))[0]
+    float_data_3 = struct.unpack('!f', bytes(data[23:27]))[0]
+    if model_id == 1:
+        sensor_data = {
+            'sensor_model': model_id_to_name[model_id],
+            'error_status': error_status,
+            'message' : {
+                'co2_data': float_data_1,
+                'temp_data': float_data_2,
+                'humid_data': float_data_3
+            }
         }
-    }
+    elif model_id == 2:
+        sensor_data = {
+            'sensor_model': model_id_to_name[model_id],
+            'error_status': error_status,
+            'message' : {
+                'pm1_data': float_data_1,
+                'pm2_5_data': float_data_2,
+                'pm10_data': float_data_3
+            }
+        }
+    else:
+        sensor_data = {
+            'sensor_model': 'None',
+            'error_status': error_status,
+            'message' : {}
+        }
     return sensor_data
