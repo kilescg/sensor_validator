@@ -58,7 +58,7 @@ async def list_i2c_devices():
         )
     return data_frame
 
-@app.get("/i2c-device/{address}")
+@app.get("/i2c-devices/{address}")
 async def read_data_from_given_address(address: int):
     if collecting_info["is_start"]:
         return {
@@ -68,7 +68,8 @@ async def read_data_from_given_address(address: int):
 
     if i2c_manager.scan(address):
         return i2c_manager.read_sensor(address)
-    return {"message" : "Can't Read Data"}
+    return {"status": "fail",
+            "message" : "Can't Read Data"}
 
 @app.get("/auto-collecting/status")
 def collecting_status_feedback():
