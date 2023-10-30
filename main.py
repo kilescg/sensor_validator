@@ -71,6 +71,19 @@ async def read_data_from_given_address(address: int):
     return {"status": "fail",
             "message" : "Can't Read Data"}
 
+@app.get("/i2c-devices-all/")
+async def read_data_from_all_address():
+    if collecting_info["is_start"]:
+        return {
+            "status": "fail",
+            "message": "Please stop data collecting first."
+        }
+    data = []
+    i2c_addresses = i2c_manager.scan_all()
+    for address in i2c_addresses:
+        data.append(i2c_manager.read_sensor(address))
+    return data
+
 @app.get("/auto-collecting/status")
 def collecting_status_feedback():
     return collecting_info
